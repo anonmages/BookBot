@@ -1,13 +1,10 @@
 import nltk
-import os
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 
-nltk.download('punkt')
-nltk.download('stopwords')
-nltk.download('wordnet')
-nltk.download('averaged_perceptron_tagger')
+for package in ['punkt', 'stopwords', 'wordnet', 'averaged_perceptron_tagger']:
+    nltk.download(package, quiet=True)
 
 books_db = [
     {"title": "The Great Gatsby", "author": "F. Scott Fitzgerald", "genre": "Novel", "summary": "Set in the Jazz Age on Long Island, the novel depicts narrator Nick Carraway's interactions with mysterious millionaire Jay Gatsby and Gatsby's obsession to reunite with his former lover, Daisy Buchanan."},
@@ -24,16 +21,17 @@ def preprocess_text(text):
     return filtered_tokens
 
 def find_books_by_genre(genre):
-    matching_books = [book for book in books_db if genre.lower() in book["genre"].lower()]
-    return matching_books
+    genre_lower = genre.lower()
+    return [book for book in books_db if genre_lower in book["genre"].lower()]
 
 def find_books_by_author(author):
-    matching_books = [book for book in books_db if author.lower() in book["author"].lower()]
-    return matching_books
+    author_lower = author.lower()
+    return [book for book in books_db if author_lower in book["author"].lower()]
 
 def book_details(title):
+    title_lower = title.lower()
     for book in books_db:
-        if title.lower() == book["title"].lower():
+        if title_lower == book["title"].lower():
             return book
     return None
 
@@ -44,7 +42,9 @@ def handle_query(query):
     nouns = [word for word, tag in tagged_query if tag.startswith('NN')]
     verbs = [word for word, tag in tagged_query if tag.startswith('VB')]
     
-    if 'recommend' in verbs or 'suggest' in verbs:
+    verbs_set = set(verbs)  
+
+    if 'recommend' in verbs_set or 'suggest' in verbs_set:
         for noun in nouns:
             genre_books = find_books_by_genre(noun)
             if genre_books:
