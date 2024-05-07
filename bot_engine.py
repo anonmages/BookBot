@@ -2,6 +2,7 @@ import nltk
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
+from functools import lru_cache
 
 for package in ['punkt', 'stopwords', 'wordnet', 'averaged_perceptron_tagger']:
     nltk.download(package, quiet=True)
@@ -15,19 +16,23 @@ books_db = [
 stop_words = set(stopwords.words('english'))
 lemmatizer = WordNetLemmatizer()
 
+@lru_cache(maxsize=128)
 def preprocess_text(text):
     tokens = word_tokenize(text.lower())
     filtered_tokens = [lemmatizer.lemmatize(word) for word in tokens if word.isalnum() and word not in stop_words]
     return filtered_tokens
 
+@lru_cache(maxsize=32)
 def find_books_by_genre(genre):
     genre_lower = genre.lower()
     return [book for book in books_db if genre_lower in book["genre"].lower()]
 
+@lru_cache(maxsize=32)
 def find_books_by_author(author):
     author_lower = author.lower()
     return [book for book in books_db if author_lower in book["author"].lower()]
 
+@lru_cache(maxsize=32)
 def book_details(title):
     title_lower = title.lower()
     for book in books_db:
