@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { Request, Response } from 'express';
 import bodyParser from 'body-parser';
 import session from 'express-session';
 import dotenv from 'dotenv';
@@ -27,20 +27,29 @@ const callPythonChatbot = async (text: string, sessionId: string): Promise<strin
 
     pythonProcess.stderr.on('data', (data) => {
       console.error(`stderr: ${data}`);
-      reject('Error in Python script processing');
+      reject(new Error('Error in Python script processing'));
+    });
+
+    pythonProcess.on('error', (error) => {
+      console.error(`Failed to start subprocess: ${error}`);
+      reject(new Error('Failed to start subprocess'));
     });
 
     pythonProcess.on('close', (code) => {
       if (code !== 0) {
         console.log(`Python script exited with code ${code}`);
-        reject('Python script exited with an error');
+        reject(new Error('Python script exited with an error'));
       }
     });
   });
 };
 
-app.post('/message', async (req, res) => {
+app.post('/message', async (req: Request, res: Response) => {
   const { message } = req.body;
+  if (typeof message !== 'string' || message.trim() === '') {
+    return res.status(400).send('Invalid input: Please provide a non-empty message string.');
+  }
+
   const sessionId = req.sessionID;
 
   try {
@@ -50,6 +59,11 @@ app.post('/message', async (req, res) => {
     console.error(error);
     res.status(500).send('Internal server error');
   }
+});
+
+app.use((err: Error, req: Request, res: Response, next: Function) => {
+  console.error(err.stack);
+  res.status(500).send('Something broke!');
 });
 
 app.listen(PORT, () => {
