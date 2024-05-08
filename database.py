@@ -3,6 +3,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 import os
 from dotenv import load_dotenv
+from functools import lru_cache
 
 load_dotenv()
 
@@ -10,7 +11,7 @@ Base = declarative_base()
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
-engine = create_engine(DATABASE_URL)
+engine = create_engine(DATABASE_URL, echo=True)  # Added echo=True to see SQL for educational purposes; remove in production
 Session = sessionmaker(bind=engine)
 session = Session()
 
@@ -48,32 +49,38 @@ class Book(Base):
 
 Base.metadata.create_all(engine)
 
+@lru_cache(maxsize=None)
 def create_user(username, preferences):
     new_user = UserProfile(username=username, preferences=preferences)
     session.add(new_user)
     session.commit()
 
+@lru_cache(maxsize=None)
 def get_user_by_username(username):
     user = session.query(UserProfile).filter_by(username=username).first()
     return user
 
 def update_user_preferences(username, new_preferences):
-    user = session.query(UserProfile).filter_by(username=username).first()
+    user = get_user_by_username.__wrapped__(username)  # Bypass the cache to ensure up to date info
     if user:
         user.preferences = new_preferences
         session.commit()
+        get_user_by_username.cache_clear()  # clear cache to reflect update
 
 def delete_user(username):
-    user = session.query(UserProfile).filter_by(username=username).first()
+    user = get_user_by_username.__wrapped__(username)  # Bypass cache to ensure up to date info
     if user:
         session.delete(user)
         session.commit()
+        get_user_by_username.cache_clear()  # clear cache to ensure it reflects this deletion
 
+@lru_cache(maxsize=None)
 def create_book(title, author, summary, isbn):
     new_book = Book(title=title, author=author, summary=summary, isbn=isbn)
     session.add(new_book)
     session.commit()
 
+@lru_cache(maxsize=None)
 def get_book_by_title(title):
     book = session.query(Book).filter_by(title=title).first()
     return book
@@ -83,6 +90,7 @@ def add_chat_history(user_id, chat_text):
     session.add(new_chat_history)
     session.commit()
 
+@lru_cache(maxsize=None)
 def get_chat_history_for_user(username):
     user = get_user_by_username(username)
     if user:
