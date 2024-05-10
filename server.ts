@@ -1,4 +1,4 @@
-import express, { Request, Response } from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import bodyParser from 'body-parser';
 import session from 'express-session';
 import dotenv from 'dotenv';
@@ -21,13 +21,18 @@ const callPythonChatbot = async (text: string, sessionId: string): Promise<strin
   return new Promise((resolve, reject) => {
     const pythonProcess = spawn('python', ['path/to/python_script.py', text, sessionId]);
 
-    pythonProcess.stdout.on('data', (data) => {
-      resolve(data.toString());
+    let dataChunks: Buffer[] = [];
+    pythonProcess.stdout.on('data', (data: Buffer) => {
+      dataChunks.push(data);
+    });
+
+    pythonProcess.stdout.on('end', () => {
+      const output = Buffer.concat(dataChunks).toString();
+      resolve(output);
     });
 
     pythonProcess.stderr.on('data', (data) => {
       console.error(`stderr: ${data}`);
-      reject(new Error('Error in Python script processing'));
     });
 
     pythonProcess.on('error', (error) => {
@@ -44,7 +49,7 @@ const callPythonChatbot = async (text: string, sessionId: string): Promise<strin
   });
 };
 
-app.post('/message', async (req: Request, res: Response) => {
+app.post('/message', async (req: Request, res: Response, next: NextFunction) => {
   const { message } = req.body;
   if (typeof message !== 'string' || message.trim() === '') {
     return res.status(400).send('Invalid input: Please provide a non-empty message string.');
@@ -56,14 +61,18 @@ app.post('/message', async (req: Request, res: Response) => {
     const chatbotResponse = await callPythonChatbot(message, sessionId);
     res.json({ message: chatbotResponse });
   } catch (error) {
-    console.error(error);
-    res.status(500).send('Internal server error');
+    next(error);
   }
 });
 
-app.use((err: Error, req: Request, res: Response, next: Function) => {
+app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   console.error(err.stack);
-  res.status(500).send('Something broke!');
+  if (res.headersSent) {
+    return next(err);
+  }
+  const statusCode = err.statusCode || 500;
+  const errorMessage = err.message || 'Internal Server Error';
+  res.status(statusCode).send(errorMessage);
 });
 
 app.listen(PORT, () => {
