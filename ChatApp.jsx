@@ -8,22 +8,27 @@ const App = () => {
   const [message, setMessage] = useState("");
   const [chat, setChat] = useState([]);
   const [username, setUsername] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
   const socket = useRef(null);
   const chatEndRef = useRef(null);
 
   useEffect(() => {
-    // Only connect if SOCKET_SERVER_URL is provided
     if (SOCKET_SERVER_URL) {
       socket.current = io(SOCKET_SERVER_URL);
   
       socket.current.on("receiveMessage", (message) => {
         setChat((prevChat) => [...prevChat, message]);
       });
+
+      socket.current.on("receiveRecommendation", (recommendation) => {
+        setChat((prevChat) => [...prevChat, `BookBot: ${recommendation}`]);
+      });  
     }
 
     return () => {
       if (socket.current) {
         socket.current.off("receiveMessage");
+        socket.current.off("receiveRecommendation");
         socket.current.disconnect();
       }
     };
@@ -41,17 +46,26 @@ const App = () => {
     setUsername(e.target.value);
   };
 
+  const handleSearchChange = (e) => {
+    setSearchTerm(e.target.value);
+  };
+
   const sendMessage = (e) => {
     e.preventDefault();
     const trimmedMessage = message.trim();
-    const sanitizedMessage = sanitizedInput(trimmedMessage); // Basic sanitization
+    const sanitizedMessage = sanitizedInput(trimmedMessage);
     if (sanitizedMessage && username.trim()) {
       socket.current.emit("sendMessage", `${username}: ${sanitizedMessage}`);
       setMessage("");
     }
   };
 
-  // Basic sanitization function
+  const fetchBookRecommendations = () => {
+    const mockRecommendation = `Recommended Book for '${searchTerm}': "The Adventures of Example Book"`;
+    socket.current.emit("sendMessage", mockRecommendation);
+    setSearchTerm("");
+  };
+
   const sanitizedInput = (input) => {
     return input.replace(/<[^>]*>?/gm, '');
   };
@@ -84,6 +98,15 @@ const App = () => {
         />
         <button type="submit">Send</button>
       </form>
+      <div className="book-search">
+        <input
+          type="text"
+          value={searchTerm}
+          onChange={handleSearchChange}
+          placeholder="Search for book recommendations..."
+        />
+        <button onClick={fetchBookRecommendations}>Search</button>
+      </div>
     </div>
   );
 };
