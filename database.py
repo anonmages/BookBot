@@ -1,17 +1,15 @@
+import os
 from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, Text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
-import os
 from dotenv import load_dotenv
 from functools import lru_cache
 
 load_dotenv()
 
-Base = declarative_base()
-
 DATABASE_URL = os.environ.get("DATABASE_URL")
-
-engine = create_engine(DATABASE_URL, echo=True)  # Added echo=True to see SQL for educational purposes; remove in production
+Base = declarative_base()
+engine = create_engine(DATABASE_URL, echo=True)
 Session = sessionmaker(bind=engine)
 session = Session()
 
@@ -20,6 +18,7 @@ class UserProfile(Base):
     id = Column(Integer, primary_key=True)
     username = Column(String(50), unique=True, nullable=False)
     preferences = Column(Text)
+    chats = relationship("ChatHistory", order_by="ChatHistory.id", back_populates="user_profile")
 
     def __repr__(self):
         return f"<UserProfile(username={self.username})>"
@@ -33,8 +32,6 @@ class ChatHistory(Base):
 
     def __repr__(self):
         return f"<ChatHistory(user_id={self.user_id})>"
-
-UserProfile.chats = relationship("ChatHistory", order_by=ChatHistory.id, back_populates="user_profile")
 
 class Book(Base):
     __tablename__ = 'books'
@@ -57,22 +54,21 @@ def create_user(username, preferences):
 
 @lru_cache(maxsize=None)
 def get_user_by_username(username):
-    user = session.query(UserProfile).filter_by(username=username).first()
-    return user
+    return session.query(UserProfile).filter_by(username=username).first()
 
 def update_user_preferences(username, new_preferences):
-    user = get_user_by_username.__wrapped__(username)  # Bypass the cache to ensure up to date info
+    user = get_user_by_username.__wrapped__(username)
     if user:
         user.preferences = new_preferences
         session.commit()
-        get_user_by_username.cache_clear()  # clear cache to reflect update
+        get_user_by_username.cache_clear()
 
 def delete_user(username):
-    user = get_user_by_username.__wrapped__(username)  # Bypass cache to ensure up to date info
+    user = get_user_by_username.__wrapped__(username)
     if user:
         session.delete(user)
         session.commit()
-        get_user_by_username.cache_clear()  # clear cache to ensure it reflects this deletion
+        get_user_by_username.cache_clear()
 
 @lru_cache(maxsize=None)
 def create_book(title, author, summary, isbn):
@@ -82,8 +78,7 @@ def create_book(title, author, summary, isbn):
 
 @lru_cache(maxsize=None)
 def get_book_by_title(title):
-    book = session.query(Book).filter_by(title=title).first()
-    return book
+    return session.query(Book).filter_by(title=title).first()
 
 def add_chat_history(user_id, chat_text):
     new_chat_history = ChatHistory(user_id=user_id, chat_text=chat_text)
@@ -93,5 +88,4 @@ def add_chat_history(user_id, chat_text):
 @lru_cache(maxsize=None)
 def get_chat_history_for_user(username):
     user = get_user_by_username(username)
-    if user:
-        return user.chats
+    return user.chats if user else None
