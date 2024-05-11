@@ -3,11 +3,23 @@ import bodyParser from 'body-parser';
 import session from 'express-session';
 import dotenv from 'dotenv';
 import { spawn } from 'child_process';
+import fs from 'fs';
+import path from 'path';
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+const logFilePath = path.join(__dirname, 'bookBotLog.txt');
+const logStream = fs.createWriteStream(logFilePath, { flags: 'a' });
+
+const log = (message: string): void => {
+  const timestamp = new Date().toISOString();
+  const logMessage = `[${timestamp}] ${message}\n`;
+  logStream.write(logMessage);
+  console.log(logMessage);
+};
 
 app.use(bodyParser.json());
 app.use(session({
@@ -28,19 +40,23 @@ const callPythonChatbot = async (text: string, sessionId: string): Promise<strin
 
     pythonProcess.stdout.on('end', () => {
       const output = Buffer.concat(dataChunks).toString();
+      log(`Python Output: ${output}`);
       resolve(output);
     });
 
     pythonProcess.stderr.on('data', (data) => {
+      log(`stderr: ${data}`);
       console.error(`stderr: ${data}`);
     });
 
     pythonProcess.on('error', (error) => {
+      log(`Failed to start subprocess: ${error}`);
       console.error(`Failed to start subprocess: ${error}`);
       reject(new Error('Failed to start subprocess'));
     });
 
     pythonProcess.on('close', (code) => {
+      log(`Python script exited with code ${code}`);
       if (code !== 0) {
         console.log(`Python script exited with code ${code}`);
         reject(new Error('Python script exited with an error'));
@@ -51,6 +67,7 @@ const callPythonChatbot = async (text: string, sessionId: string): Promise<strin
 
 app.post('/message', async (req: Request, res: Response, next: NextFunction) => {
   const { message } = req.body;
+  log(`Received message: ${message}`);
   if (typeof message !== 'string' || message.trim() === '') {
     return res.status(400).send('Invalid input: Please provide a non-empty message string.');
   }
@@ -66,6 +83,7 @@ app.post('/message', async (req: Request, res: Response, next: NextFunction) => 
 });
 
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+  log(`Error: ${err.stack}`);
   console.error(err.stack);
   if (res.headersSent) {
     return next(err);
@@ -76,5 +94,6 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
 });
 
 app.listen(PORT, () => {
+  log(`Server running on port ${PORT}`);
   console.log(`Server running on port ${PORT}`);
 });
