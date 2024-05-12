@@ -18,19 +18,31 @@ class ChatSessionManager {
     this.sessionTimeout = parseInt(process.env.SESSION_TIMEOUT || "1800000");
   }
 
+  private isSessionActive(session: ChatSession): boolean {
+    return (Date.now() - session.lastActivity) < this.sessionTimeout;
+  }
+
   private findSessionByUserId(userId: string): ChatSession | undefined {
-    return this.sessions.find(session => session.userId === userId && (Date.now() - session.lastActivity) < this.sessionTimeout);
+    return this.sessions.find(session => session.userId === userId && this.isSessionActive(session));
   }
 
   private createSession(userId: string): ChatSession {
-    const newSession: ChatSession = {
+    const newSession = this.initializeSession(userId);
+    this.sessions.push(newSession);
+    return newSession;
+  }
+
+  private initializeSession(userId: string): ChatSession {
+    return {
       userId: userId,
       sessionId: uuidv4(),
       messages: [],
       lastActivity: Date.now(),
     };
-    this.sessions.push(newSession);
-    return newSession;
+  }
+
+  private updateSessionActivity(session: ChatSession): void {
+    session.lastActivity = Date.now();
   }
 
   public getSession(userId: string): ChatSession {
@@ -39,7 +51,7 @@ class ChatSessionManager {
     if (!session) {
       session = this.createSession(userId);
     } else {
-      session.lastActivity = Date.now();
+      this.updateSessionActivity(session);
     }
 
     return session;
@@ -47,11 +59,19 @@ class ChatSessionManager {
 
   public addMessageToSession(userId: string, message: string): void {
     const session = this.getSession(userId);
+    this.appendMessageToSession(session, message);
+  }
+
+  private appendMessageToSession(session: ChatSession, message: string): void {
     session.messages.push(message);
   }
 
   public cleanUpSessions(): void {
-    const currentTime = Date.now();
-    this.sessions = this.sessions.filter(session => (currentTime - session.lastActivity) < this.sessionTimeout);
+    this.sessions = this.sessions.filter(session => this.isSessionActive(session));
   }
 }
+
+// Example usage
+const chatSessionManager = new ChatSessionManager();
+chatSessionManager.addMessageToSession("user1", "Hello, how can I assist you?");
+console.log(chatSessionManager.sessions);
