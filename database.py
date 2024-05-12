@@ -2,6 +2,7 @@ import os
 from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, Text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from dotenv import load_dotenv
 from functools import lru_cache
 
@@ -48,44 +49,86 @@ Base.metadata.create_all(engine)
 
 @lru_cache(maxsize=None)
 def create_user(username, preferences):
-    new_user = UserProfile(username=username, preferences=preferences)
-    session.add(new_user)
-    session.commit()
+    try:
+        new_user = UserProfile(username=username, preferences=preferences)
+        session.add(new_user)
+        session.commit()
+    except IntegrityError:
+        print(f"User with username '{username}' already exists.")
+        session.rollback()
+    except SQLAlchemyError as e:
+        print(f"Unable to create user: {e}")
+        session.rollback()
 
 @lru_cache(maxsize=None)
 def get_user_by_username(username):
-    return session.query(UserProfile).filter_by(username=username).first()
+    try:
+        return session.query(UserProfile).filter_by(username=username).first()
+    except SQLAlchemyError as e:
+        print(f"Error fetching user by username '{username}': {e}")
+        return None
 
 def update_user_preferences(username, new_preferences):
-    user = get_user_by_username.__wrapped__(username)
-    if user:
-        user.preferences = new_preferences
-        session.commit()
-        get_user_by_username.cache_clear()
+    try:
+        user = get_user_by_username.__wrapped__(username)
+        if user:
+            user.preferences = new_preferences
+            session.commit()
+            get_user_by_username.cache_clear()
+        else:
+            print(f"No user found with username '{username}'.")
+    except SQLAlchemyError as e:
+        print(f"Unable to update user preferences: {e}")
+        session.rollback()
 
 def delete_user(username):
-    user = get_user_by_username.__wrapped__(username)
-    if user:
-        session.delete(user)
-        session.commit()
-        get_user_by_username.cache_clear()
+    try:
+        user = get_user_by_username.__wrapped__(username)
+        if user:
+            session.delete(user)
+            session.commit()
+            get_user_by_username.cache_clear()
+        else:
+            print(f"No user found with username '{username}'.")
+    except SQLAlchemyError as e:
+        print(f"Unable to delete user: {e}")
+        session.rollback()
 
 @lru_cache(maxsize=None)
 def create_book(title, author, summary, isbn):
-    new_book = Book(title=title, author=author, summary=summary, isbn=isbn)
-    session.add(new_book)
-    session.commit()
+    try:
+        new_book = Book(title=title, author=author, summary=summary, isbn=isbn)
+        session.add(new_book)
+        session.commit()
+    except IntegrityError:
+        print(f"Book with ISBN '{isbn}' already exists.")
+        session.rollback()
+    except SQLAlchemyError as e:
+        print(f"Unable to create book: {e}")
+        session.rollback()
 
 @lru_cache(maxsize=None)
 def get_book_by_title(title):
-    return session.query(Book).filter_by(title=title).first()
+    try:
+        return session.query(Book).filter_by(title=title).first()
+    except SQLAlchemyError as e:
+        print(f"Error fetching book by title '{title}': {e}")
+        return None
 
 def add_chat_history(user_id, chat_text):
-    new_chat_history = ChatHistory(user_id=user_id, chat_text=chat_text)
-    session.add(new_chat_history)
-    session.commit()
+    try:
+        new_chat_history = ChatHistory(user_id=user_id, chat_text=chat_text)
+        session.add(new_chat_history)
+        session.commit()
+    except SQLAlchemyError as e:
+        print(f"Unable to add chat history: {e}")
+        session.rollback()
 
 @lru_cache(maxsize=None)
 def get_chat_history_for_user(username):
-    user = get_user_by_username(username)
-    return user.chats if user else None
+    try:
+        user = get_user_by_username(username)
+        return user.chats if user else None
+    except SQLAlchemyError as e:
+        print(f"Error fetching chat history for user '{username}': {e}")
+        return None
