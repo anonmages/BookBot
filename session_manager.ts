@@ -7,71 +7,70 @@ interface ChatSession {
   userId: string;
   sessionId: string;
   messages: Array<string>;
-  lastActivity: number; 
+  lastInteractionTime: number; 
 }
 
-class ChatSessionManager {
-  sessions: ChatSession[] = [];
-  sessionTimeout: number;
+class SessionManager {
+  activeSessions: ChatSession[] = [];
+  sessionIdleLimit: number;
 
   constructor() {
-    this.sessionTimeout = parseInt(process.env.SESSION_TIMEOUT || "1800000");
+    this.sessionIdleLimit = parseInt(process.env.SESSION_TIMEOUT || "1800000");
   }
 
-  private isSessionActive(session: ChatSession): boolean {
-    return (Date.now() - session.lastActivity) < this.sessionTimeout;
+  private isSessionCurrentlyActive(session: ChatSession): boolean {
+    return (Date.now() - session.lastInteractionTime) < this.sessionIdleLimit;
   }
 
-  private findSessionByUserId(userId: string): ChatSession | undefined {
-    return this.sessions.find(session => session.userId === userId && this.isSessionActive(session));
+  private getSessionByUserId(userId: string): ChatSession | undefined {
+    return this.activeSessions.find(session => session.userId === userId && this.isSessionCurrentlyActive(session));
   }
 
-  private createSession(userId: string): ChatSession {
-    const newSession = this.initializeSession(userId);
-    this.sessions.push(newSession);
+  private createNewSession(userId: string): ChatSession {
+    const newSession = this.initializeNewSession(userId);
+    this.activeSessions.push(newSession);
     return newSession;
   }
 
-  private initializeSession(userId: string): ChatSession {
+  private initializeNewSession(userId: string): ChatSession {
     return {
       userId: userId,
       sessionId: uuidv4(),
       messages: [],
-      lastActivity: Date.now(),
+      lastInteractionTime: Date.now(),
     };
   }
 
-  private updateSessionActivity(session: ChatSession): void {
-    session.lastActivity = Date.now();
+  private refreshSessionActivity(session: ChatSession): void {
+    session.lastInteractionTime = Date.now();
   }
 
-  public getSession(userId: string): ChatSession {
-    let session = this.findSessionByUserId(userId);
+  public fetchOrCreateSession(userId: string): ChatSession {
+    let session = this.getSessionByUserId(userId);
 
     if (!session) {
-      session = this.createSession(userId);
+      session = this.createNewSession(userId);
     } else {
-      this.updateSessionActivity(session);
+      this.refreshSessionActivity(session);
     }
 
     return session;
   }
 
-  public addMessageToSession(userId: string, message: string): void {
-    const session = this.getSession(userId);
-    this.appendMessageToSession(session, message);
+  public logMessageInSession(userId: string, message: string): void {
+    const session = this.fetchOrCreateSession(userId);
+    this.recordMessageInSession(session, message);
   }
 
-  private appendMessageToSession(session: ChatSession, message: string): void {
+  private recordMessageInSession(session: ChatSession, message: string): void {
     session.messages.push(message);
   }
 
-  public cleanUpSessions(): void {
-    this.sessions = this.sessions.filter(session => this.isSessionActive(session));
+  public purgeInactiveSessions(): void {
+    this.activeSessions = this.activeSessions.filter(session => this.isSessionCurrentlyActive(session));
   }
 }
 
-// Example usage
-const chatSessionManager = new ChatSessionManager();
-chatSessionManager.addMessageToSession("user1", "Hello, how can I assist you?");
-console.log(chatSessionManager.sessions);
+const sessionManager = new SessionManager();
+sessionManager.logMessageInSession("user1", "Hello, how can I assist you?");
+console.log(sessionManager.activeSessions);
