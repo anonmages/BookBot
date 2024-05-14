@@ -14,11 +14,16 @@ const PORT = process.env.PORT || 3000;
 const logFilePath = path.join(__dirname, 'bookBotLog.txt');
 const logStream = fs.createWriteStream(logFilePath, { flags: 'a' });
 
-const log = (message: string): void => {
+const log = (message: string, isError: boolean = false): void => {
   const timestamp = new Date().toISOString();
-  const logMessage = `[${timestamp}] ${message}\n`;
+  const logType = isError ? 'ERROR' : 'INFO';
+  const logMessage = `[${timestamp}] ${logType}: ${message}\n`;
   logStream.write(logMessage);
-  console.log(logMessage);
+  if (isError) {
+    console.error(logMessage);
+  } else {
+    console.log(logMessage);
+  }
 };
 
 app.use(bodyParser.json());
@@ -45,20 +50,17 @@ const callPythonChatbot = async (text: string, sessionId: string): Promise<strin
     });
 
     pythonProcess.stderr.on('data', (data) => {
-      log(`stderr: ${data}`);
-      console.error(`stderr: ${data}`);
+      log(`stderr: ${data}`, true);
     });
 
     pythonProcess.on('error', (error) => {
-      log(`Failed to start subprocess: ${error}`);
-      console.error(`Failed to start subprocess: ${error}`);
+      log(`Failed to start subprocess: ${error}`, true);
       reject(new Error('Failed to start subprocess'));
     });
 
     pythonProcess.on('close', (code) => {
       log(`Python script exited with code ${code}`);
       if (code !== 0) {
-        console.log(`Python script exited with code ${code}`);
         reject(new Error('Python script exited with an error'));
       }
     });
@@ -83,8 +85,7 @@ app.post('/message', async (req: Request, res: Response, next: NextFunction) => 
 });
 
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {
-  log(`Error: ${err.stack}`);
-  console.error(err.stack);
+  log(`Error: ${err.stack}`, true);
   if (res.headersSent) {
     return next(err);
   }
@@ -94,6 +95,5 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
 });
 
 app.listen(PORT, () => {
-  log(`Server running on port ${PORT}`);
-  console.log(`Server running on port ${PORT}`);
+log(`Server running on port ${PORT}`);
 });
