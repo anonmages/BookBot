@@ -7,8 +7,12 @@ load_dotenv()
 GOOGLE_API_KEY = os.getenv('GOOGLE_BOOKS_API_KEY')
 
 def fetch_books_by_query(search_query, max_results=10):
-    GOOGLE_BOOKS_QUERY_URL = f"https://www.googleapis.com/books/v1/volumes?q={search_query}&maxResults={max_results}&key={GOOGLE_API_KEY}"
+    GOOGLE_BOOKS_QUERY_URL = (
+        f"https://www.googleapis.com/books/v1/volumes?q="
+        f"{search_query}&maxResults={max_results}&key={GOOGLE_API_KEY}"
+    )
     response = make_request_to_google_books_api(GOOGLE_BOOKS_QUERY_URL)
+    
     if response:
         return parse_books_response(response)
     else:
@@ -42,7 +46,8 @@ def create_book_dict(item):
     return {
         'title': volume_information.get('title', 'No Title'),
         'authors': format_authors(volume_information.get('authors', ['No Authors'])),
-        'published_year': extract_published_year(volume_information.get('publishedDate', 'No Publication Date')),
+        'published_year': extract_published_year(
+            volume_information.get('publishedDate', 'No Publication Date')),
         'summary': volume_information.get('description', 'No Summary')
     }
 
@@ -55,6 +60,7 @@ def extract_published_year(publish_date):
 if __name__ == "__main__":
     search_query = "Python programming"
     found_books = fetch_books_by_query(search_query)
+    
     for book in found_books:
         print(f"Title: {book['title']}")
         print(f"Authors: {book['authors']}")
