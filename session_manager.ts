@@ -15,7 +15,20 @@ class SessionManager {
   sessionIdleLimit: number;
 
   constructor() {
-    this.sessionIdleLimit = parseInt(process.env.SESSION_TIMEOUT || "1800000");
+    this.sessionIdleLimit = this.parseSessionTimeout(process.env.SESSION_TIMEOUT);
+  }
+
+  private parseSessionTimeout(timeout: string | undefined): number {
+    try {
+      const parsedTimeout = parseInt(timeout || "1800000", 10);
+      if (isNaN(parsedTimeout)) {
+        throw new Error("SESSION_TIMEOUT is not a valid number");
+      }
+      return parsedTimeout;
+    } catch(error) {
+      console.error("Error parsing SESSION_TIMEOUT from environment variables", error);
+      return 1800000; 
+    }
   }
 
   private isSessionCurrentlyActive(session: ChatSession): boolean {
@@ -23,13 +36,23 @@ class SessionManager {
   }
 
   private getSessionByUserId(userId: string): ChatSession | undefined {
-    return this.activeSessions.find(session => session.userId === userId && this.isSessionCurrentlyActive(session));
+    try {
+      return this.activeSessions.find(session => session.userId === userId && this.isSessionCurrentlyActive(session));
+    } catch(error) {
+      console.error("Error fetching session by user ID", error);
+      return undefined;
+    }
   }
 
   private createNewSession(userId: string): ChatSession {
-    const newSession = this.initializeNewSession(userId);
-    this.activeSessions.push(newSession);
-    return newSession;
+    try {
+      const newSession = this.initializeNewSession(userId);
+      this.activeSessions.push(newSession);
+      return newSession;
+    } catch(error) {
+      console.error("Error creating new session", error);
+      throw error;
+    }
   }
 
   private initializeNewSession(userId: string): ChatSession {
@@ -42,35 +65,60 @@ class SessionManager {
   }
 
   private refreshSessionActivity(session: ChatSession): void {
-    session.lastInteractionTime = Date.now();
+    try {
+      session.lastInteractionTime = Date.now();
+    } catch(error) {
+      console.error("Error refreshing session activity", error);
+    }
   }
 
   public fetchOrCreateSession(userId: string): ChatSession {
-    let session = this.getSessionByUserId(userId);
+    try {
+      let session = this.getSessionByUserId(userId);
 
-    if (!session) {
-      session = this.createNewSession(userId);
-    } else {
-      this.refreshSessionActivity(session);
+      if (!session) {
+        session = this.createNewSession(userId);
+      } else {
+        this.refreshSessionActivity(session);
+      }
+
+      return session;
+    } catch(error) {
+      console.error("Error fetching or creating a session", error);
+      throw error;
     }
-
-    return session;
   }
 
   public logMessageInSession(userId: string, message: string): void {
-    const session = this.fetchOrCreateSession(userId);
-    this.recordMessageInSession(session, message);
+    try {
+      const session = this.fetchOrCreateSession(userId);
+      this.recordMessageInSession(session, message);
+    } catch(error) {
+      console.error("Error logging message in session", error);
+    }
   }
 
   private recordMessageInSession(session: ChatSession, message: string): void {
-    session.messages.push(message);
+    try {
+      session.messages.push(message);
+    } catch(error) {
+      console.error("Error recording message in session", error);
+    }
   }
 
   public purgeInactiveSessions(): void {
-    this.activeSessions = this.activeSessions.filter(session => this.isSessionCurrentlyActive(session));
+    try {
+      this.activeSessions = this.activeSessions.filter(session => this.isSessionCurrentlyActive(session));
+    } catch(error) {
+      console.error("Error purging inactive sessions", error);
+    }
   }
 }
 
 const sessionManager = new SessionManager();
-sessionManager.logMessageInSession("user1", "Hello, how can I assist you?");
-console.log(sessionManager.activeSessions);
+try {
+    sessionManager.logMessageInSession("user1", "Hello, how can I assist you?");
+    console.log(sessionManager.activeSessions);
+} catch (error) {
+    console.error("An error occurred during session management", error);
+}
