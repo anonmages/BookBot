@@ -34,6 +34,12 @@ app.use(session({
   cookie: { secure: !process.env.DEBUG },
 }));
 
+const bookRecommendations = {
+  fantasy: ["The Hobbit", "The Name of the Wind"],
+  sciFi: ["Dune", "The Three-Body Problem"],
+  romance: ["Pride and Prejudice", "The Notebook"],
+};
+
 const callPythonChatbot = async (text: string, sessionId: string): Promise<string> => {
   return new Promise((resolve, reject) => {
     const pythonProcess = spawn('python', ['path/to/python_script.py', text, sessionId]);
@@ -82,6 +88,15 @@ app.post('/message', async (req: Request, res: Response, next: NextFunction) => 
   } catch (error) {
     next(error);
   }
+});
+
+app.get('/recommendations/:genre', (req: Request, res: Response) => {
+  const { genre } = req.params;
+  const recommendations = bookRecommendations[genre];
+  if (!recommendations) {
+    return res.status(404).send('Genre not found. Please try another genre.');
+  }
+  res.json({ recommendations });
 });
 
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {
