@@ -1,20 +1,45 @@
 import requests
 import os
+import json
 from dotenv import load_dotenv
+from functools import lru_cache
 
 load_dotenv()
 
 GOOGLE_API_KEY = os.getenv('GOOGLE_BOOKS_API_KEY')
 
-def fetch_books_by_query(search_query, max_results=10):
+cache_file_path = 'books_cache.json'
+
+def load_cache():
+    try:
+        with open(cache_file_path, 'r') as file:
+            return json.load(file)
+    except FileNotFoundError:
+        return {}
+
+def save_cache(cache):
+    with open(cache_file_path, 'w') as file:
+        json.dump(cache, file)
+
+cache = load_cache()
+
+def fetch_books_by_query(search_query, max_results=10, print_type='all'):
+    cache_key = f"{search_query}_{max_results}_{print_type}"
+    if cache_key in cache:
+        print("Fetching from cache")
+        return cache[cache_key]
+    print("Fetching from API")
     GOOGLE_BOOKS_QUERY_URL = (
         f"https://www.googleapis.com/books/v1/volumes?q="
-        f"{search_query}&maxResults={max_results}&key={GOOGLE_API_KEY}"
+        f"{search_query}&maxResults={max_results}&printType={print_type}&key={GOOGLE_API_KEY}"
     )
     response = make_request_to_google_books_api(GOOGLE_BOOKS_QUERY_URL)
     
     if response:
-        return parse_books_response(response)
+        books = parse_books_response(response)
+        cache[cache_key] = books
+        save_cache(cache)
+        return books
     else:
         return []
 
@@ -59,7 +84,8 @@ def extract_published_year(publish_date):
 
 if __name__ == "__main__":
     search_query = "Python programming"
-    found_books = fetch_books_by_query(search_query)
+    print_type = "books"  
+    found_books = fetch_books_by_query(search_query, print_type=print_type)
     
     for book in found_books:
         print(f"Title: {book['title']}")
